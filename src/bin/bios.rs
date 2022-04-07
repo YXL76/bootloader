@@ -256,22 +256,22 @@ fn detect_rsdp() -> Option<PhysAddr> {
             physical_address: usize,
             size: usize,
         ) -> PhysicalMapping<Self, T> {
-            PhysicalMapping {
-                physical_start: physical_address,
-                virtual_start: NonNull::new(physical_address as *mut _).unwrap(),
-                region_length: size,
-                mapped_length: size,
-                handler: Self,
-            }
+            PhysicalMapping::new(
+                physical_address,
+                NonNull::new(physical_address as *mut _).unwrap(),
+                size,
+                size,
+                Self,
+            )
         }
 
-        fn unmap_physical_region<T>(&self, _region: &PhysicalMapping<Self, T>) {}
+        fn unmap_physical_region<T>(_region: &PhysicalMapping<Self, T>) {}
     }
 
     unsafe {
         Rsdp::search_for_on_bios(IdentityMapped)
             .ok()
-            .map(|mapping| PhysAddr::new(mapping.physical_start as u64))
+            .map(|mapping| PhysAddr::new(mapping.physical_start() as u64))
     }
 }
 

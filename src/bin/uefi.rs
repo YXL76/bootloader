@@ -17,10 +17,9 @@ use bootloader::{
 };
 use core::{arch::asm, mem, panic::PanicInfo, slice};
 use uefi::{
-    prelude::{entry, Boot, Handle, ResultExt, Status, SystemTable},
+    prelude::{entry, Boot, Handle, Status, SystemTable},
     proto::console::gop::{GraphicsOutput, PixelFormat},
     table::boot::{MemoryDescriptor, MemoryType},
-    Completion,
 };
 use x86_64::{
     structures::paging::{FrameAllocator, OffsetPageTable, PageTable, PhysFrame, Size4KiB},
@@ -35,18 +34,17 @@ fn efi_main(image: Handle, st: SystemTable<Boot>) -> Status {
 
     let mmap_storage = {
         let max_mmap_size =
-            st.boot_services().memory_map_size() + 8 * mem::size_of::<MemoryDescriptor>();
+            st.boot_services().memory_map_size().map_size + 8 * mem::size_of::<MemoryDescriptor>();
         let ptr = st
             .boot_services()
-            .allocate_pool(MemoryType::LOADER_DATA, max_mmap_size)?
-            .log();
+            .allocate_pool(MemoryType::LOADER_DATA, max_mmap_size)?;
         unsafe { slice::from_raw_parts_mut(ptr, max_mmap_size) }
     };
 
     log::trace!("exiting boot services");
     let (system_table, memory_map) = st
         .exit_boot_services(image, mmap_storage)
-        .expect_success("Failed to exit boot services");
+        .expect("Failed to exit boot services");
 
     let mut frame_allocator = LegacyFrameAllocator::new(memory_map.copied());
 
@@ -145,11 +143,11 @@ fn init_logger(st: &SystemTable<Boot>) -> (PhysAddr, FrameBufferInfo) {
     let gop = st
         .boot_services()
         .locate_protocol::<GraphicsOutput>()
-        .expect_success("failed to locate gop");
+        .expect("failed to locate gop");
     let gop = unsafe { &mut *gop.get() };
 
     let mode = {
-        let modes = gop.modes().map(Completion::unwrap);
+        let modes = gop.modes();
         match (
             CONFIG.minimum_framebuffer_height,
             CONFIG.minimum_framebuffer_width,
@@ -167,7 +165,7 @@ fn init_logger(st: &SystemTable<Boot>) -> (PhysAddr, FrameBufferInfo) {
     };
     if let Some(mode) = mode {
         gop.set_mode(&mode)
-            .expect_success("Failed to apply the desired display mode");
+            .expect("Failed to apply the desired display mode");
     }
 
     let mode_info = gop.current_mode_info();
